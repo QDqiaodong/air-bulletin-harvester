@@ -1,0 +1,16 @@
+{
+  "schema_version": 1,
+  "min_valid_percent": 75,
+  "stations": [
+    {
+      "station": "River & Park",
+      "timezone": "America/New_York",
+      "pollutants": ["PM2.5", "PM10"]
+    },
+    {
+      "station": "Hill",
+      "timezone": "America/New_York",
+      "pollutants": ["NO2"]
+    }
+  ]
+}

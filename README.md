@@ -41,14 +41,39 @@ Hill 的 NO2 为 NULL（ND），PM10 为 0。CLI 错误以非零状态退出，�
 可用 `--url http://127.0.0.1:PORT/bulletin` 连接自管本地服务。外部站点、重定向和携带认证信息的
 URL 不受支持；不存在已获核实使用条件的外部数据接口。数据来源见 `data/PROVENANCE.md`。
 
+## 日覆盖报告
+
+采集库构建完成后，可用独立的只读入口按计划生成每日覆盖与描述性均值报告，不改变任何采集事实：
+
+```sh
+.venv/bin/python -m air_harvest.daily \
+  --db run/air.sqlite \
+  --plan data/daily-plan.example.json \
+  --start-date 2026-01-01 --end-date 2026-01-31 \
+  --output run/daily-report.json
+```
+
+日期为 `YYYY-MM-DD` 且范围两端包含。计划是 UTF-8 JSON，校验失败、日期非法、范围倒置、
+时区不可用或数据库缺失均以非零状态退出且不创建/覆盖任何文件；输出采用同目录临时文件加
+原子替换，旧报告在任何失败下保持完整，修正后可直接重跑。统计口径（UTC 小时槽、本地日归属、
+numeric/nd_only/missing 三态、小时等权日均、整数覆盖率判定、精确有理数与 ROUND_HALF_UP 六位
+展示、单快照只读、来源追溯与字节稳定性）完整定义在 `docs/daily-report.md`。
+
+时区通过标准库 `zoneinfo` 使用系统 IANA 时区数据库；精简容器需安装 `tzdata` 一类系统包，
+计划中的时区名无法加载时按配置项定位报错，不静默回退 UTC。该能力只使用 Python 标准库，
+不引入数据库服务或外部接口，仍是合成演示数据，不输出健康或监管判断。
+
 ## 结构与约束
 
 - `air_harvest/source.py`：有界文件/HTTP 获取。
 - `air_harvest/parser.py`：HTML 表格契约与语义归一。
 - `air_harvest/store.py`：去重、冲突拒绝、事务及来源哈希。
+- `air_harvest/daily.py`：只读日覆盖报告、计划校验、精确算术与原子写出。
 - `air_harvest/demo.py`：完整离线 HTTP 链路。
-- `data/`：明确标注的合成 fixture；`tests/`：语义与失败验证。
+- `data/`：明确标注的合成 fixture（含日报告示例计划 `daily-plan.example.json`
+  与小时级公报 `daily-bulletin.html`）；`tests/`：语义与失败验证。
 - `docs/contract.md`：字段、空值、单位、时间、存储与重复处理定义。
+- `docs/daily-report.md`：日报告统计定义、JSON 结构、时区环境与失败恢复说明。
 
 当前为单批次、单采集者基线；没有自动调度、增量游标或跨批次纠错。运行库及环境均忽略。
 MIT 许可覆盖本项目代码与自制样例；未复制第三方代码或数据。
