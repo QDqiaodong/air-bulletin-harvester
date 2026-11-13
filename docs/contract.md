@@ -26,3 +26,12 @@ Output: `sources` (content SHA256, caller label, parsed row count) and
 `observations` (key, concentration, qualifier, source digest). A collection
 summary reports parsed rows, inserted observations, duplicates and total stored.
 A valid header-only bulletin is accepted as zero rows; missing contracts fail.
+
+## Conditional cache extension
+
+`air_harvest.conditional` (commands `fetch`, `status`, `export`) adds an
+opt-in per-URL cache over this same database: canonical-URL keys, ETag/
+Last-Modified validators, exact original bytes and a per-URL generation.  The
+bulletin, business-key, unit, ND, value and first-source rules above are
+unchanged; the extension never rewrites an existing observation and refuses
+unknown database structures.  See `docs/conditional-cache.md`.

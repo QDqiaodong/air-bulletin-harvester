@@ -26,6 +26,7 @@ python3 -m venv .venv
 .venv/bin/python -m air_harvest.demo --db run/air.sqlite
 .venv/bin/python -m air_harvest.demo --db run/air.sqlite
 .venv/bin/python -m air_harvest --input data/bulletin.html --db run/file.sqlite
+.venv/bin/python -m air_harvest.conditional_demo --dir run/conditional-demo
 .venv/bin/python -m unittest discover -s tests -v
 ```
 
@@ -89,6 +90,29 @@ NULL 与真实测量值 0 不同），全程不经过 float。输出库保存 ma
 校验、外键与完整性检查后原子替换，任何失败均非零退出、旧输出与输入保持完整、临时文件被清理。
 数据模型、查询示例、失败重跑与全部校验规则见 `docs/merge-warehouse.md`。
 
+## 条件采集缓存（fetch / status / export）
+
+在既有采集库之上提供可选的增量条件采集，不改变旧 `ingest`、`--input/--url`、日报与归并路径：
+
+```sh
+.venv/bin/python -m air_harvest fetch --url http://127.0.0.1:PORT/bulletin --db run/cond.sqlite
+.venv/bin/python -m air_harvest status --db run/cond.sqlite
+.venv/bin/python -m air_harvest export --db run/cond.sqlite --output run/original.html \
+  --url http://127.0.0.1:PORT/bulletin
+.venv/bin/python -m air_harvest.conditional_demo --dir run/conditional-demo --clean
+```
+
+URL 原串只用于寻址本地回环 fixture，不作为标识、内容或路径；缓存键为规范化 URL 的
+SHA256，仅接受 `http`、`127.0.0.1`/`localhost`/`::1`，拒绝凭据、片段、空白、控制字符、
+非 2 MiB 响应、非 200/304、重定向、短读、长度不符与异常编码。验证器以 ETag 优先、保留弱
+标签，缺失时清除；`304` 必须响应条件请求且缓存字节、来源、解析结果与观测全部一致，不入库、
+不改代次。`200` 将原始字节作为 BLOB、来源保首次、观测按既有业务键/单位/ND/数值语义写入，
+并在同一事务内将代次加 1；网络期间不持写锁，提交前以请求起点的代次与摘要做 CAS（含冷启动），
+迟到响应报 `stale_response` 且不重试，冲突或提交前故障全部回滚，提交后回执失败不撤销提交。
+旧库不重建原文，未知结构（多余/缺失表、错列、缺外键）直接拒绝。`status`/`export` 离线只读、
+缺库不创建；导出使用同目录临时文件加原子替换，拒绝覆盖库文件、链接别名，失败保留旧文件。
+完整契约、传输细节、事务边界与失败分类见 `docs/conditional-cache.md`。
+
 ## 结构与约束
 
 - `air_harvest/source.py`：有界文件/HTTP 获取。
@@ -98,12 +122,17 @@ NULL 与真实测量值 0 不同），全程不经过 float。输出库保存 ma
 - `air_harvest/merge.py`：多采集库只读快照、精确归并、显式裁决与自包含归并库写出。
 - `air_harvest/merge_demo.py`：经真实解析与 ingest 生成合成归并示例输入库与 manifest。
 - `air_harvest/demo.py`：完整离线 HTTP 链路。
+- `air_harvest/conditional.py`：条件采集缓存、校验器、CAS 事务、只读状态与原子导出。
+- `air_harvest/conditional_cli.py`：`fetch`/`status`/`export` 子命令。
+- `air_harvest/conditional_demo.py`：本地回环的条件采集演示。
 - `data/`：明确标注的合成 fixture（含日报告示例计划 `daily-plan.example.json`、
   归并清单模板 `merge-manifest.example.json` 与小时级公报 `daily-bulletin.html`）；
   `tests/`：语义与失败验证。
 - `docs/contract.md`：字段、空值、单位、时间、存储与重复处理定义。
 - `docs/daily-report.md`：日报告统计定义、JSON 结构、时区环境与失败恢复说明。
 - `docs/merge-warehouse.md`：归并清单契约、快照规范、数仓模型、SQL 查询与重跑说明。
+- `docs/conditional-cache.md`：条件采集 URL/传输/验证器契约、缓存模型、CAS 与失败恢复。
 
-当前为单批次、单采集者基线；没有自动调度、增量游标或跨批次纠错。运行库及环境均忽略。
+当前为单批次、单采集者基线；条件采集只提供每 URL 的代次与请求日志，没有自动调度或跨批次纠错。
+运行库及环境均忽略。
 MIT 许可覆盖本项目代码与自制样例；未复制第三方代码或数据。
