@@ -63,17 +63,47 @@ numeric/nd_only/missing 三态、小时等权日均、整数覆盖率判定、�
 计划中的时区名无法加载时按配置项定位报错，不静默回退 UTC。该能力只使用 Python 标准库，
 不引入数据库服务或外部接口，仍是合成演示数据，不输出健康或监管判断。
 
+## 多采集库归并数仓
+
+不同操作员各自采集同一批合成公报后，可用独立的离线归并入口把多个 SQLite 采集库合并为一个
+自包含、可直接用 SQL 查询的归并库。归并不改动任何输入库，不调用建表/升级逻辑，不隐式建库，
+也从不按文件顺序、最大值或平均值自动裁决：同一业务键出现不同候选值时必须由 manifest 给出
+显式裁决，且裁决的 `expected` 必须完整等于快照中的全部见证，输入库一旦变化旧裁决即失效。
+
+```sh
+# 经真实 HTML 解析与 ingest 生成示例输入库与 manifest（合成数据）。
+.venv/bin/python -m air_harvest.merge_demo --dir run/merge-example
+# 清单模板另见 data/merge-manifest.example.json。
+.venv/bin/python -m air_harvest.merge \
+  --manifest run/merge-example/manifest.json \
+  --output run/merge-example/warehouse.sqlite
+```
+
+每个输入库在一个只读 URI 连接中固定同一读取事务，全部 sources 与 observations 来自该库的同一
+快照；库间没有共同事务。归并业务键仍是 station + 完整 UTC instant + pollutant，微秒精度保留，
+同一时刻的不同偏移表示归为一键；浓度以 `decimal.Decimal` 精确比较（25 与 25.0 相同，ND 的
+NULL 与真实测量值 0 不同），全程不经过 float。输出库保存 manifest 原始字节与 SHA256、每库规范
+逻辑快照（含全部字段、稳定排序、独立 SHA256，而非库文件二进制哈希）、逐 shard 来源、规范候选
+值、完整观测见证、唯一最终事实，以及冲突、裁决理由、完整预期集合与落选候选；移走 manifest 和
+全部输入库后仍可从输出重建各输入快照并重新解释全部事实。写入在输出同目录的私有临时库中完成
+校验、外键与完整性检查后原子替换，任何失败均非零退出、旧输出与输入保持完整、临时文件被清理。
+数据模型、查询示例、失败重跑与全部校验规则见 `docs/merge-warehouse.md`。
+
 ## 结构与约束
 
 - `air_harvest/source.py`：有界文件/HTTP 获取。
 - `air_harvest/parser.py`：HTML 表格契约与语义归一。
 - `air_harvest/store.py`：去重、冲突拒绝、事务及来源哈希。
 - `air_harvest/daily.py`：只读日覆盖报告、计划校验、精确算术与原子写出。
+- `air_harvest/merge.py`：多采集库只读快照、精确归并、显式裁决与自包含归并库写出。
+- `air_harvest/merge_demo.py`：经真实解析与 ingest 生成合成归并示例输入库与 manifest。
 - `air_harvest/demo.py`：完整离线 HTTP 链路。
-- `data/`：明确标注的合成 fixture（含日报告示例计划 `daily-plan.example.json`
-  与小时级公报 `daily-bulletin.html`）；`tests/`：语义与失败验证。
+- `data/`：明确标注的合成 fixture（含日报告示例计划 `daily-plan.example.json`、
+  归并清单模板 `merge-manifest.example.json` 与小时级公报 `daily-bulletin.html`）；
+  `tests/`：语义与失败验证。
 - `docs/contract.md`：字段、空值、单位、时间、存储与重复处理定义。
 - `docs/daily-report.md`：日报告统计定义、JSON 结构、时区环境与失败恢复说明。
+- `docs/merge-warehouse.md`：归并清单契约、快照规范、数仓模型、SQL 查询与重跑说明。
 
 当前为单批次、单采集者基线；没有自动调度、增量游标或跨批次纠错。运行库及环境均忽略。
 MIT 许可覆盖本项目代码与自制样例；未复制第三方代码或数据。

@@ -1,0 +1,20 @@
+{
+  "schema_version": 1,
+  "shards": [
+    {"shard_id": "operator-a", "path": "shards/operator-a.sqlite"},
+    {"shard_id": "operator-b", "path": "shards/operator-b.sqlite"}
+  ],
+  "resolutions": [
+    {
+      "station": "River & Park",
+      "observed_at": "2026-01-01T00:00:00Z",
+      "pollutant": "PM2.5",
+      "selected_shard": "operator-b",
+      "reason": "operator-b re-checked the sample against the chain of custody and its 30 ug/m3 reading is accepted for the demo",
+      "expected": [
+        {"shard_id": "operator-a", "qualifier": "measured", "value_ug_m3": "25"},
+        {"shard_id": "operator-b", "qualifier": "measured", "value_ug_m3": "30"}
+      ]
+    }
+  ]
+}
